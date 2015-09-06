@@ -1,10 +1,57 @@
+#![feature(custom_derive)]
 #[macro_use]
+extern crate serde;
+extern crate serde_json;
 extern crate clap;
 use clap::{Arg, App, SubCommand};
+use std::io::prelude::*;
+use std::collections::BTreeMap;
+use std::fs::File;
 
 struct TodoItem {
     text: String,
     categories: Vec<String>
+}
+
+impl serde::Serialize for TodoItem {
+    fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error> where S: serde::Serializer {
+        serializer.visit_struct("TodoItem", TodoItemMapVisitor {
+            value: self,
+            state: 0
+        })
+    }
+}
+
+struct TodoItemMapVisitor<'a> {
+    value: &'a TodoItem,
+    state: u8,
+}
+
+impl<'a> serde::ser::MapVisitor for TodoItemMapVisitor<'a> {
+    fn visit<S>(&mut self, serializer: &mut S) -> Result<Option<()>, S::Error>
+        where S: serde::Serializer {
+            match self.state {
+                0 => {
+                    self.state += 1;
+                    Ok(Some(try!(serializer.visit_struct_elt("text", &self.value.text))))
+                }
+                1 => {
+                    self.state += 1;
+                    Ok(Some(try!(serializer.visit_struct_elt("categories", &self.value.categories))))
+                }
+
+                _ => {
+                    Ok(None)
+               }
+            }
+        }
+}
+
+fn write_file(v: &Vec<TodoItem>) -> std::io::Result<()> {
+    let serialized = serde_json::to_string(&v).unwrap();
+    let mut f = try!(File::create("foo.txt"));
+    try!(f.write_all(serialized.as_bytes()));
+    Ok(())
 }
 
 fn show_list(v: &Vec<TodoItem>) {
@@ -54,7 +101,7 @@ fn main() {
 
     let mut v: Vec<TodoItem> = vec![];
     if matches.is_present("item") {
-        let user_item = value_t!(matches.value_of("item"), String).unwrap();
+        let user_item = matches.value_of("item").unwrap();
         let mut added_item: TodoItem = TodoItem{text : user_item.to_string(), categories : vec![]};
 
         if let Some(ref categories) = matches.values_of("category") {
@@ -67,7 +114,7 @@ fn main() {
 
     if matches.is_present("show") {
         if matches.is_present("list_category") {
-            let user_category = value_t!(matches.value_of("list_category"), String).unwrap();
+            let user_category = matches.value_of("list_category").unwrap();
             show_list_by_category(&v, &user_category.to_string());
         }
         if v.is_empty() {
@@ -76,4 +123,5 @@ fn main() {
             show_list(&v);
         }
     }
+    write_file(&v);
 }

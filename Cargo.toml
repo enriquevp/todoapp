@@ -3,5 +3,11 @@ name = "todoapp"
 version = "0.1.0"
 authors = ["Enrique Villarreal <evillarreal@protonmail.com>"]
 
+[build-dependencies]
+serde_codegen = "*"
+syntex = "*"
+
 [dependencies]
+serde = "*"
+serde_json = "*"
 clap = "*"
